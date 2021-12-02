@@ -1,4 +1,3 @@
-import e from "express";
 import mysql from "mysql";
 
 const configMysql = {
@@ -11,6 +10,7 @@ const configMysql = {
 
 // GUARDANDO LA CONEXION de nuestra bd en una constante, para poder utilizarla esa conexion y guardar datos en la bd.
 const conect = mysql.createConnection(configMysql);
+console.log(conect);
 
 //* Funcion agregar usuario
 const addUser = (tabla, usuario, callback) => {
