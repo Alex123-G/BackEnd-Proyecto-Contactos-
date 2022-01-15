@@ -1,8 +1,10 @@
-import mysql from "mysql";
+var mysql = require("mysql");
+const fs = require("fs");
+const path = require("path");
 
 const configMysql = {
 	host: process.env.HOST,
-	// Ojo aqui colocamos user y no Usuario poruqe el objeto de la conexion tiene como nombre de la propiedad "user" y por eso tenemos que pasarle el mismo nombre de la propiedad; si colocamos usuario nos saldra indefinido.
+	// Ojo aqui colocamos user y no Usuario(como el nombre de la variable de entorno) porque el objeto de la conexion tiene como nombre de la propiedad "user" y por eso tenemos que pasarle el mismo nombre de la propiedad; si colocamos USUARIO o lo mismo en minuscula nos saldra indefinido ya que la conexion nos pide como nombre de la propiead "user".
 	user: process.env.USUARIO,
 	password: process.env.PASSWORD,
 	database: process.env.database,
@@ -10,13 +12,12 @@ const configMysql = {
 
 // GUARDANDO LA CONEXION de nuestra bd en una constante, para poder utilizarla esa conexion y guardar datos en la bd.
 const conect = mysql.createConnection(configMysql);
-console.log(conect);
 
-//* Funcion agregar usuario
-const addUser = (tabla, usuario, callback) => {
-	//! el valor de nombre de contactodebe ir entre comillas sean dobles o simples, esto es poruqe el tipo de dato de la tabla es un varchar(char) , y si no lo colocamos es como si le estubieramos enviando un int; ES POR ESO QUE CUANDO UN CAMPO DE UNA TABLA ES VARCHAR(CHAR) LO DEBEMOS COLOCAR CON COMILLAS.
-	let sql = `insert into ${tabla} (id_contactos, nombre_contacto, numero_contacto) values (null, "${usuario.nombre}", ${usuario.numero})`;
-	conect.query(sql, (err, result) => {
+//* Funcion agregar usuario(Esto deberia estar en otro archivo llamado functions o algo parecido y estas se van a llamar al "index.js");ademas el contenido de index.js como la creacion de las rutas deberian estar en una carpeta llamada Controllers y dentro de ella el archivo UserController.js.
+module.exports.addUser = (tabla, nombre_contacto, numero_contacto, photo, callback) => {
+	let sql = `insert into ${tabla} set ?`;
+	const data = { nombre_contacto, numero_contacto, photo };
+	conect.query(sql, data, (err, result) => {
 		if (err) {
 			callback(err, null);
 		} else {
@@ -25,19 +26,54 @@ const addUser = (tabla, usuario, callback) => {
 	});
 };
 
-const getAllUsers = (tabla, callback) => {
+//* Funcion para actualizar un contacto CON PHOTO
+module.exports.updateUserPhoto = (tabla, id, nombre_contacto, numero_contacto, photo, callback) => {
+	const data = [nombre_contacto, numero_contacto, photo, id];
+	let sql = `UPDATE ${tabla} SET nombre_contacto = ?, numero_contacto = ? , photo = ? WHERE id_contactos = ?`;
+	conect.query(sql, data, (err, result) => {
+		if (err) {
+			callback(err, null);
+		} else {
+			callback(null, result);
+		}
+	});
+};
+
+//* Funcion para actualizar un contacto SIN PHOTO
+module.exports.updateUser = (tabla, id, nombre_contacto, numero_contacto, callback) => {
+	const data = [nombre_contacto, numero_contacto, id];
+	let sql = `UPDATE ${tabla} SET nombre_contacto = ?, numero_contacto = ? WHERE id_contactos = ?`;
+	conect.query(sql, data, (err, result) => {
+		if (err) {
+			callback(err, null);
+		} else {
+			callback(null, result);
+		}
+	});
+};
+
+//* Funcion para listar todos los contactos
+module.exports.getAllUsers = (tabla, callback) => {
 	let sql = `select * from ${tabla}`;
 	conect.query(sql, (err, result) => {
 		if (err) {
 			callback(err, null);
 		} else {
-			callback(null, result);
+			//* Hacemos un recorrido de result(que es un Arreglo de objeto con los datos de los usuairos) y dentro de el lo que hacemos es por cada elemento del arreglo es decir por cada usuario vamos a crear una imagen con los bits que nos da (item.photo) que es la imagen convertida en bits y guardada en la BD y le decimos que nos lo guarde en "dbimages" y lo guarda con el nombre del id.png.
+			result.map(item => {
+				fs.writeFileSync(path.join(__dirname, "../dbimages/" + item.id_contactos + ".png"), item.photo);
+			});
+			// * En photo_url estamos indicando que nos devuelva un arreglo con el nombre de los archivos que estan dentro de "dbimages"
+			const photo_url = fs.readdirSync(path.join(__dirname, "../dbimages/"));
+			//*  Nueva constante para devolver el resultado de nuestro listado, ademas de un Array del listado de las fotos
+			const newResult = [[...result], { photo_url }];
+			callback(null, newResult);
 		}
 	});
 };
 
 //* Funcion buscar contacto por id
-const getUserById = (tabla, id, callback) => {
+module.exports.getUserById = (tabla, id, callback) => {
 	let sql = `select * from ${tabla} where id_contactos= ${id}`;
 	conect.query(sql, (err, result) => {
 		if (err) {
@@ -48,28 +84,14 @@ const getUserById = (tabla, id, callback) => {
 	});
 };
 
-//* Funcion para actualizar un contacto
-const updateUser = (id, tabla, usuario, callback) => {
-	let sql = `update ${tabla} set nombre_contacto = "${usuario.nombre}", numero_contacto = ${usuario.numero} where id_contactos = ${id} `;
-	conect.query(sql, (err, result) => {
-		if (err) {
-			callback(err, null);
-		} else {
-			callback(null, result);
-		}
-	});
-};
-
 //* Funcion para eliminar un contacto
-const deleteUserById = (tabla, id, callback) => {
+module.exports.deleteUserById = (tabla, id, callback) => {
 	let sql = `delete from ${tabla} where id_contactos = ${id} `;
 	conect.query(sql, (err, result) => {
 		if (err) {
 			callback(err, null);
 		} else {
-			callback(null, result);
+			return callback(null, result);
 		}
 	});
 };
-
-export { conect, addUser, getAllUsers, getUserById, updateUser, deleteUserById };
